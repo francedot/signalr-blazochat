@@ -1,0 +1,68 @@
+﻿@*@page "/"*@
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Collections.ObjectModel
+@inject NavigationManager NavigationManager
+@implements IAsyncDisposable
+
+<div class="form-group">
+    <label>
+        User:
+        <input @bind="userInput" />
+    </label>
+</div>
+<div class="form-group">
+    <label>
+        Message:
+        <input @bind="messageInput" size="50" />
+    </label>
+</div>
+<button @onclick="Send" disabled="@(!IsConnected)">Send</button>
+
+<hr>
+
+<ul>
+    @foreach (var message in messages)
+    {
+        <li>@message</li>
+    }
+</ul>
+
+@code {
+    private HubConnection hubConnection;
+    private List<string> messages = new List<string>();
+    private string userInput;
+    private string messageInput;
+
+    protected override async Task OnInitializedAsync()
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/chathub"))
+            .Build();
+
+        hubConnection.On<string, string>("ReceiveMessage", (user, message) =>
+        {
+            var encodedMsg = $"{user}: {message}";
+            messages.Add(encodedMsg);
+            StateHasChanged();
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    async Task Send() =>
+        await hubConnection.SendAsync("SendMessage", userInput, messageInput);
+
+    public bool IsConnected =>
+        hubConnection.State == HubConnectionState.Connected;
+
+    public async ValueTask DisposeAsync()
+    {
+        // Methods may return an instance of this value type when 
+        // it's likely that the result of their operations will be
+        // available synchronously and when the method is expected
+        // to be invoked so frequently that the cost of allocating a 
+        // new Task<TResult> for each call will be prohibitive.
+        // If you're writing an interface / virtual method that others will override, ValueTask is the right default choice.
+        await hubConnection.DisposeAsync();
+    }
+}
